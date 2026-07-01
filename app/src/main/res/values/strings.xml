@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">文字识别阅读器</string>
+    <string name="select_file">选择文件</string>
+    <string name="recognizing">识别中...</string>
+    <string name="recognition_complete">识别完成</string>
+    <string name="no_chinese_content">未识别到中文内容</string>
+    <string name="play">播放</string>
+    <string name="pause">暂停</string>
+    <string name="stop">停止</string>
+    <string name="speed">语速</string>
+    <string name="select_image_or_pdf">请选择图片或PDF文件</string>
+    <string name="permission_denied">权限被拒绝，请在设置中开启文件读取权限</string>
+    <string name="file_not_supported">不支持的文件格式</string>
+    <string name="recognizing_image">正在识别图片...</string>
+    <string name="recognizing_pdf">正在识别PDF...</string>
+</resources>

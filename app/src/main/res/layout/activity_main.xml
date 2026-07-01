@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <Button
+        android:id="@+id/btnSelectFile"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/select_file"
+        android:textSize="18sp"
+        android:background="?attr/colorPrimary"
+        android:textColor="@color/white"
+        android:padding="12dp"
+        android:layout_marginBottom="16dp"/>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:id="@+id/tvResult"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/select_image_or_pdf"
+            android:textSize="16sp"
+            android:textColor="@color/black"
+            android:lineSpacingExtra="4dp"
+            android:padding="8dp"
+            android:background="@color/grey_200"
+            android:minHeight="200dp"/>
+
+    </ScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="16dp">
+
+        <ImageButton
+            android:id="@+id/btnPlay"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:src="@drawable/ic_play"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_marginEnd="16dp"/>
+
+        <ImageButton
+            android:id="@+id/btnPause"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:src="@drawable/ic_pause"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_marginEnd="16dp"/>
+
+        <ImageButton
+            android:id="@+id/btnStop"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:src="@drawable/ic_stop"
+            android:background="?attr/selectableItemBackgroundBorderless"/>
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/speed"
+            android:textSize="14sp"
+            android:textColor="@color/grey_600"
+            android:layout_marginBottom="8dp"/>
+
+        <SeekBar
+            android:id="@+id/sbSpeed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="20"
+            android:progress="10"
+            android:thumbTint="?attr/colorPrimary"
+            android:progressTint="?attr/colorPrimary"/>
+
+    </LinearLayout>
+
+</LinearLayout>
