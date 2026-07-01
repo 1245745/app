@@ -1,6 +1,8 @@
 package com.example.ocrreader
 
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.util.Log
@@ -89,7 +91,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkPermissions() {
-        if (!PermissionManager.hasAllPermissions(this)) {
+        if (PermissionManager.shouldRequestPermissions() && !PermissionManager.hasAllPermissions(this)) {
             requestPermissions(PermissionManager.getRequiredPermissions(), REQUEST_CODE_PERMISSIONS)
         }
     }
@@ -101,8 +103,11 @@ class MainActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
-            if (!PermissionManager.hasAllPermissions(this)) {
-                Toast.makeText(this, R.string.permission_denied, Toast.LENGTH_LONG).show()
+            val allGranted = PermissionManager.hasAllPermissions(this)
+            if (allGranted) {
+                Toast.makeText(this, R.string.permission_granted, Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, R.string.permission_warning, Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -121,11 +126,13 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == REQUEST_CODE_FILE_SELECT && resultCode == RESULT_OK) {
             data?.data?.let { uri ->
                 processFile(uri)
+            } ?: run {
+                Toast.makeText(this, R.string.file_select_error, Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    private fun processFile(uri: android.net.Uri) {
+    private fun processFile(uri: Uri) {
         val fileName = FileUtil.getFileName(this, uri)
         if (!FileUtil.isImageFile(fileName) && !FileUtil.isPdfFile(fileName)) {
             Toast.makeText(this, R.string.file_not_supported, Toast.LENGTH_SHORT).show()
@@ -136,15 +143,28 @@ class MainActivity : AppCompatActivity() {
 
         CoroutineScope(Dispatchers.IO).launch {
             val tempFile = FileUtil.getTempFile(this@MainActivity, fileName)
-            FileUtil.copyUriToFile(this@MainActivity, uri, tempFile)
+            val copySuccess = FileUtil.copyUriToFile(this@MainActivity, uri, tempFile)
 
-            val result = if (FileUtil.isPdfFile(fileName)) {
-                pdfProcessor.processPdf(tempFile)
-            } else {
-                ocrEngine.recognizeImage(tempFile)
+            if (!copySuccess) {
+                withContext(Dispatchers.Main) {
+                    hideProgressDialog()
+                    Toast.makeText(this@MainActivity, R.string.file_read_error, Toast.LENGTH_SHORT).show()
+                }
+                return@launch
             }
 
-            tempFile.delete()
+            val result = try {
+                if (FileUtil.isPdfFile(fileName)) {
+                    pdfProcessor.processPdf(tempFile)
+                } else {
+                    ocrEngine.recognizeImage(tempFile)
+                }
+            } catch (e: Exception) {
+                Log.e("OCR", "Process file error: ${e.message}", e)
+                ""
+            } finally {
+                tempFile.delete()
+            }
 
             withContext(Dispatchers.Main) {
                 hideProgressDialog()

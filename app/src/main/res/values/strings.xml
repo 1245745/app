@@ -10,7 +10,11 @@
     <string name="speed">语速</string>
     <string name="select_image_or_pdf">请选择图片或PDF文件</string>
     <string name="permission_denied">权限被拒绝，请在设置中开启文件读取权限</string>
+    <string name="permission_granted">权限已获取</string>
+    <string name="permission_warning">部分权限未获取，可能影响文件选择功能</string>
     <string name="file_not_supported">不支持的文件格式</string>
+    <string name="file_select_error">文件选择失败</string>
+    <string name="file_read_error">文件读取失败，请检查文件权限</string>
     <string name="recognizing_image">正在识别图片...</string>
     <string name="recognizing_pdf">正在识别PDF...</string>
 </resources>

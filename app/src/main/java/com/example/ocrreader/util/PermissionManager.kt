@@ -3,7 +3,6 @@ package com.example.ocrreader.util
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 object PermissionManager {
@@ -14,8 +13,10 @@ object PermissionManager {
                 "android.permission.READ_MEDIA_IMAGES",
                 "android.permission.READ_MEDIA_DOCUMENTS"
             )
-        } else {
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             arrayOf("android.permission.READ_EXTERNAL_STORAGE")
+        } else {
+            emptyArray()
         }
     }
 
@@ -25,10 +26,7 @@ object PermissionManager {
         }
     }
 
-    fun shouldShowRequestPermissionRationale(
-        context: android.app.Activity,
-        permission: String
-    ): Boolean {
-        return ActivityCompat.shouldShowRequestPermissionRationale(context, permission)
+    fun shouldRequestPermissions(): Boolean {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
     }
 }

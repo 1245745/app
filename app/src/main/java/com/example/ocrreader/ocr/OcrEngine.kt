@@ -3,6 +3,7 @@ package com.example.ocrreader.ocr
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.util.Log
 import com.googlecode.tesseract.android.TessBaseAPI
 import java.io.File
 import java.io.FileOutputStream
@@ -32,18 +33,27 @@ class OcrEngine(private val context: Context) {
                 }
                 inputStream.close()
                 outputStream.close()
+                Log.d("OCR", "Language data copied successfully")
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("OCR", "Failed to copy language data: ${e.message}", e)
             }
+        } else {
+            Log.d("OCR", "Language data already exists")
         }
     }
 
     fun recognizeImage(imageFile: File): String {
         return try {
+            Log.d("OCR", "Recognizing image: ${imageFile.absolutePath}")
             val bitmap = BitmapFactory.decodeFile(imageFile.absolutePath)
+            if (bitmap == null) {
+                Log.e("OCR", "Failed to decode image file")
+                return ""
+            }
+            Log.d("OCR", "Image decoded: ${bitmap.width}x${bitmap.height}")
             recognizeBitmap(bitmap)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("OCR", "Error recognizing image: ${e.message}", e)
             ""
         }
     }
@@ -51,15 +61,24 @@ class OcrEngine(private val context: Context) {
     fun recognizeBitmap(bitmap: Bitmap): String {
         val tess = TessBaseAPI()
         return try {
+            Log.d("OCR", "Initializing Tesseract with data path: $DATA_PATH")
             val initSuccess = tess.init(DATA_PATH, "chi_sim")
             if (!initSuccess) {
+                Log.e("OCR", "Tesseract initialization failed")
                 return ""
             }
+            Log.d("OCR", "Tesseract initialized successfully")
+
             tess.setImage(bitmap)
             val result = tess.getUTF8Text()
-            filterChineseOnly(result)
+            Log.d("OCR", "Raw OCR result length: ${result?.length ?: 0}")
+
+            val filtered = filterChineseOnly(result ?: "")
+            Log.d("OCR", "Filtered Chinese result length: ${filtered.length}")
+
+            filtered
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("OCR", "Error during OCR: ${e.message}", e)
             ""
         } finally {
             tess.recycle()
