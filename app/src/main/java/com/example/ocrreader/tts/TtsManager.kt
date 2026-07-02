@@ -1,6 +1,8 @@
 package com.example.ocrreader.tts
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import java.util.Locale
@@ -12,6 +14,11 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
     private var speechRate = 1.0f
     private var onTtsReady: (() -> Unit)? = null
     private var onSpeechCompleted: (() -> Unit)? = null
+    private var onCharacterProgress: ((Int) -> Unit)? = null
+
+    private var currentText: String = ""
+    private var currentIndex: Int = 0
+    private val handler = Handler(Looper.getMainLooper())
 
     init {
         tts = TextToSpeech(context, this)
@@ -27,9 +34,26 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {}
                 override fun onDone(utteranceId: String?) {
-                    onSpeechCompleted?.invoke()
+                    handler.post {
+                        currentIndex++
+                        onCharacterProgress?.invoke(currentIndex)
+                        if (currentIndex < currentText.length) {
+                            speakNextCharacter()
+                        } else {
+                            onSpeechCompleted?.invoke()
+                        }
+                    }
                 }
-                override fun onError(utteranceId: String?) {}
+                override fun onError(utteranceId: String?) {
+                    handler.post {
+                        currentIndex++
+                        if (currentIndex < currentText.length) {
+                            speakNextCharacter()
+                        } else {
+                            onSpeechCompleted?.invoke()
+                        }
+                    }
+                }
             })
             onTtsReady?.invoke()
         }
@@ -47,25 +71,48 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
         onSpeechCompleted = listener
     }
 
+    fun setOnCharacterProgressListener(listener: (Int) -> Unit) {
+        onCharacterProgress = listener
+    }
+
     fun speak(text: String) {
         if (!isInitialized || tts == null) return
-
         if (text.isEmpty()) return
 
         tts?.stop()
+        handler.removeCallbacksAndMessages(null)
 
+        currentText = text
+        currentIndex = 0
+
+        onCharacterProgress?.invoke(0)
+        speakNextCharacter()
+    }
+
+    private fun speakNextCharacter() {
+        if (currentIndex >= currentText.length) {
+            onSpeechCompleted?.invoke()
+            return
+        }
+
+        val charToSpeak = currentText[currentIndex].toString()
         val params = HashMap<String, String>()
-        params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "utterance_${System.currentTimeMillis()}"
+        params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "char_${currentIndex}"
 
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params)
+        tts?.speak(charToSpeak, TextToSpeech.QUEUE_FLUSH, params)
     }
 
     fun pause() {
         tts?.stop()
+        handler.removeCallbacksAndMessages(null)
     }
 
     fun stop() {
         tts?.stop()
+        handler.removeCallbacksAndMessages(null)
+        currentText = ""
+        currentIndex = 0
+        onCharacterProgress?.invoke(-1)
     }
 
     fun setSpeechRate(rate: Float) {
@@ -79,6 +126,14 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     fun isSpeaking(): Boolean {
         return tts?.isSpeaking ?: false
+    }
+
+    fun getCurrentIndex(): Int {
+        return currentIndex
+    }
+
+    fun getCurrentText(): String {
+        return currentText
     }
 
     fun release() {

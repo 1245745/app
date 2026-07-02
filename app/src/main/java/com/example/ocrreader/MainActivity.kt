@@ -3,6 +3,9 @@ package com.example.ocrreader
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.util.Log
 import android.widget.Button
 import android.widget.ImageButton
@@ -38,6 +41,7 @@ class MainActivity : AppCompatActivity() {
 
     private var recognizedText: String = ""
     private var progressDialog: AlertDialog? = null
+    private var currentReadingIndex: Int = -1
 
     private val REQUEST_CODE_PERMISSIONS = 1001
     private val REQUEST_CODE_FILE_SELECT = 1002
@@ -86,6 +90,10 @@ class MainActivity : AppCompatActivity() {
         ttsManager = TtsManager(this)
         ttsManager.setOnTtsReadyListener {
             Log.d("TTS", "TTS initialized")
+        }
+        ttsManager.setOnCharacterProgressListener { index ->
+            currentReadingIndex = index
+            updateTextHighlight()
         }
     }
 
@@ -199,6 +207,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateResult(result: OcrResult) {
         recognizedText = result.text
+        currentReadingIndex = -1
+
         if (result.error != null) {
             tvResult.text = result.error
             Toast.makeText(this, result.error, Toast.LENGTH_LONG).show()
@@ -206,6 +216,43 @@ class MainActivity : AppCompatActivity() {
             tvResult.text = getString(R.string.no_chinese_content)
         } else {
             tvResult.text = result.text
+        }
+    }
+
+    private fun updateTextHighlight() {
+        if (recognizedText.isEmpty() || currentReadingIndex < 0) {
+            tvResult.text = recognizedText
+            return
+        }
+
+        val spannable = SpannableString(recognizedText)
+
+        for (i in 0 until currentReadingIndex) {
+            spannable.setSpan(
+                ForegroundColorSpan(getColor(R.color.read_color)),
+                i,
+                i + 1,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+
+        if (currentReadingIndex < recognizedText.length) {
+            spannable.setSpan(
+                ForegroundColorSpan(getColor(R.color.highlight_color)),
+                currentReadingIndex,
+                currentReadingIndex + 1,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+
+        tvResult.text = spannable
+
+        tvResult.post {
+            val layout = tvResult.layout
+            if (layout != null && currentReadingIndex < recognizedText.length) {
+                val line = layout.getLineForOffset(currentReadingIndex)
+                tvResult.scrollTo(0, layout.getLineTop(line) - tvResult.height / 2)
+            }
         }
     }
 
@@ -223,6 +270,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopText() {
         ttsManager.stop()
+        currentReadingIndex = -1
+        tvResult.text = recognizedText
     }
 
     override fun onDestroy() {
