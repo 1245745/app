@@ -14,7 +14,19 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
     private var speechRate = 1.0f
     private var engineName: String = ""
     private var initStatus: Int = -2
-    private var engineList: List<String> = emptyList()
+
+    private var knownEngines = listOf(
+        "",
+        "com.google.android.tts",
+        "com.samsung.SMT",
+        "com.xiaomi.mibrain.speech",
+        "com.iflytek.speechsuite",
+        "com.baidu.duer.tts",
+        "com.huawei.hmos.tts",
+        "com.meizu.flyme.speech",
+        "com.oppo.tts"
+    )
+
     private var currentEngineIndex: Int = 0
 
     private var onTtsReady: (() -> Unit)? = null
@@ -22,48 +34,35 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
     private var onCharacterProgress: ((Int) -> Unit)? = null
 
     init {
-        enumerateEnginesAndInit()
+        tryInitTts()
     }
 
-    private fun enumerateEnginesAndInit() {
-        Log.d("TTS", "Enumerating TTS engines")
-        
-        val tempTts = TextToSpeech(context, null)
-        val engines = tempTts.engines
-        tempTts.shutdown()
-
-        engineList = engines.map { it.name }
-        Log.d("TTS", "Available engines: ${engineList.size}")
-        engineList.forEachIndexed { i, name ->
-            Log.d("TTS", "Engine $i: $name")
-        }
-
-        if (engineList.isEmpty()) {
-            Log.e("TTS", "No TTS engines available")
-            initStatus = -1
-            return
-        }
-
+    private fun tryInitTts() {
+        Log.d("TTS", "Starting TTS initialization, trying engine $currentEngineIndex")
         currentEngineIndex = 0
         tryNextEngine()
     }
 
     private fun tryNextEngine() {
-        if (currentEngineIndex >= engineList.size) {
+        if (currentEngineIndex >= knownEngines.size) {
             Log.e("TTS", "All engines failed")
             initStatus = -1
             return
         }
 
-        val engineName = engineList[currentEngineIndex]
-        Log.d("TTS", "Trying engine $currentEngineIndex: $engineName")
+        val engineName = knownEngines[currentEngineIndex]
+        Log.d("TTS", "Trying engine $currentEngineIndex: ${if (engineName.isEmpty()) "default" else engineName}")
         
         if (tts != null) {
             tts?.shutdown()
             tts = null
         }
 
-        tts = TextToSpeech(context, this, engineName)
+        if (engineName.isEmpty()) {
+            tts = TextToSpeech(context, this)
+        } else {
+            tts = TextToSpeech(context, this, engineName)
+        }
     }
 
     fun retryInit() {
@@ -74,15 +73,15 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
         isInitialized = false
         initStatus = -2
         currentEngineIndex = 0
-        enumerateEnginesAndInit()
+        tryInitTts()
     }
 
     override fun onInit(status: Int) {
         initStatus = status
-        Log.d("TTS", "onInit called with status: $status, engine: ${engineList.getOrNull(currentEngineIndex)}")
+        Log.d("TTS", "onInit called with status: $status")
 
         if (status == TextToSpeech.SUCCESS) {
-            this.engineName = engineList.getOrNull(currentEngineIndex) ?: "Unknown"
+            this.engineName = tts?.defaultEngine ?: "Unknown"
             Log.d("TTS", "Engine name: $this.engineName")
 
             val chineseLocales = listOf(
@@ -136,7 +135,7 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
 
             testSpeak()
         } else {
-            Log.e("TTS", "Initialization failed with status: $status")
+            Log.e("TTS", "Initialization failed with status: $status, trying next engine")
             
             currentEngineIndex++
             tryNextEngine()
@@ -174,10 +173,6 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     fun getInitStatus(): Int {
         return initStatus
-    }
-
-    fun getEngineList(): List<String> {
-        return engineList
     }
 
     fun speak(text: String) {

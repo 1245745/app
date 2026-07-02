@@ -272,21 +272,21 @@ class MainActivity : AppCompatActivity() {
     private fun showTtsErrorDialog() {
         val engine = ttsManager.getEngineName()
         val status = ttsManager.getInitStatus()
-        val engines = ttsManager.getEngineList()
         
-        val engineListStr = if (engines.isEmpty()) "无" else engines.joinToString("\n")
-        
-        val info = "引擎: $engine\n初始化: false\n状态码: $status\n\n可用引擎列表:\n$engineListStr\n\n请检查手机是否安装了中文语音引擎。"
+        val info = "引擎: $engine\n初始化: false\n状态码: $status\n\n手机缺少语音合成引擎，请安装后重试。"
         
         AlertDialog.Builder(this)
             .setTitle("语音合成不可用")
             .setMessage(info)
-            .setPositiveButton("重试") { _, _ ->
+            .setPositiveButton("安装语音引擎") { _, _ ->
+                openGooglePlayForTts()
+            }
+            .setNegativeButton("重试") { _, _ ->
                 ttsManager.retryInit()
                 Toast.makeText(this, "正在重新初始化...", Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("打开TTS设置") { _, _ ->
-                openTtsSettings()
+            .setNeutralButton("安装TTS数据") { _, _ ->
+                installTtsData()
             }
             .show()
     }
@@ -298,6 +298,32 @@ class MainActivity : AppCompatActivity() {
             startActivity(intent)
         } catch (e: Exception) {
             Toast.makeText(this, "无法打开TTS设置", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun installTtsData() {
+        try {
+            val intent = Intent(android.speech.tts.TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "无法安装TTS数据", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun openGooglePlayForTts() {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.tts"))
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        } catch (e: Exception) {
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.tts"))
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+            } catch (ex: Exception) {
+                Toast.makeText(this, "无法打开应用商店", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
