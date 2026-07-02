@@ -1,15 +1,18 @@
 package com.example.ocrreader.tts
 
 import android.content.Context
+import android.media.AudioAttributes
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.util.Log
 import java.util.Locale
 
 class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     private var tts: TextToSpeech? = null
     private var isInitialized = false
+    private var isChineseSupported = false
     private var speechRate = 1.0f
     private var onTtsReady: (() -> Unit)? = null
     private var onSpeechCompleted: (() -> Unit)? = null
@@ -22,9 +25,26 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             val result = tts?.setLanguage(Locale.CHINA)
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+            Log.d("TTS", "Set language result: $result")
+
+            if (result == TextToSpeech.LANG_MISSING_DATA) {
+                Log.e("TTS", "Chinese TTS data missing")
+                isChineseSupported = false
+            } else if (result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                Log.e("TTS", "Chinese TTS not supported")
+                isChineseSupported = false
                 tts?.setLanguage(Locale.getDefault())
+            } else {
+                isChineseSupported = true
+                Log.d("TTS", "Chinese TTS supported")
             }
+
+            val audioAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+            tts?.setAudioAttributes(audioAttributes)
+
             isInitialized = true
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {}
@@ -41,6 +61,8 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
                 }
             })
             onTtsReady?.invoke()
+        } else {
+            Log.e("TTS", "Initialization failed with status: $status")
         }
     }
 
@@ -60,17 +82,41 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
         onCharacterProgress = listener
     }
 
-    fun speak(text: String) {
-        if (!isInitialized || tts == null) return
-        if (text.isEmpty()) return
+    fun isChineseSupported(): Boolean {
+        return isChineseSupported
+    }
+
+    fun speak(text: String): Boolean {
+        if (!isInitialized || tts == null) {
+            Log.e("TTS", "TTS not initialized")
+            return false
+        }
+
+        if (text.isEmpty()) {
+            Log.e("TTS", "Empty text")
+            return false
+        }
 
         tts?.stop()
 
         val utteranceId = "utterance_${System.currentTimeMillis()}"
+
         val bundle = Bundle()
         bundle.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
 
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, bundle, utteranceId)
+        val result = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, bundle, utteranceId)
+        Log.d("TTS", "Speak result: $result, text length: ${text.length}")
+
+        if (result == TextToSpeech.SUCCESS) {
+            return true
+        } else {
+            Log.e("TTS", "Speak failed, trying fallback API")
+            val params = HashMap<String, String>()
+            params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = utteranceId
+            val fallbackResult = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params)
+            Log.d("TTS", "Fallback speak result: $fallbackResult")
+            return fallbackResult == TextToSpeech.SUCCESS
+        }
     }
 
     fun pause() {
