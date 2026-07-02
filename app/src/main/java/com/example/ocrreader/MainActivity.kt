@@ -262,18 +262,30 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.no_chinese_content, Toast.LENGTH_SHORT).show()
             return
         }
+        if (!ttsManager.isInitialized()) {
+            showTtsErrorDialog()
+            return
+        }
         ttsManager.speak(recognizedText)
-        showTtsInfo()
     }
 
-    private fun showTtsInfo() {
+    private fun showTtsErrorDialog() {
         val engine = ttsManager.getEngineName()
-        val initialized = ttsManager.isInitialized()
-        val speaking = ttsManager.isSpeaking()
-        val result = ttsManager.getLastSpeakResult()
+        val status = ttsManager.getInitStatus()
         
-        val info = "引擎: $engine\n初始化: $initialized\n正在播放: $speaking\n结果码: $result"
-        Toast.makeText(this, info, Toast.LENGTH_LONG).show()
+        val info = "引擎: $engine\n初始化: false\n状态码: $status\n\n请检查手机是否安装了中文语音引擎。"
+        
+        AlertDialog.Builder(this)
+            .setTitle("语音合成不可用")
+            .setMessage(info)
+            .setPositiveButton("重试") { _, _ ->
+                ttsManager.retryInit()
+                Toast.makeText(this, "正在重新初始化...", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("打开TTS设置") { _, _ ->
+                openTtsSettings()
+            }
+            .show()
     }
 
     private fun openTtsSettings() {

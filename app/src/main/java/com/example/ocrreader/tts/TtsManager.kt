@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.speech.tts.Voice
 import android.util.Log
 import java.util.Locale
 
@@ -13,18 +14,36 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
     private var isInitialized = false
     private var speechRate = 1.0f
     private var engineName: String = ""
-    private var lastSpeakResult: Int = -2
+    private var initStatus: Int = -2
     private var onTtsReady: (() -> Unit)? = null
     private var onSpeechCompleted: (() -> Unit)? = null
     private var onCharacterProgress: ((Int) -> Unit)? = null
 
     init {
+        tryInitTts()
+    }
+
+    private fun tryInitTts() {
+        Log.d("TTS", "Starting TTS initialization")
         tts = TextToSpeech(context, this)
     }
 
+    fun retryInit() {
+        if (tts != null) {
+            tts?.shutdown()
+            tts = null
+        }
+        isInitialized = false
+        initStatus = -2
+        tryInitTts()
+    }
+
     override fun onInit(status: Int) {
+        initStatus = status
+        Log.d("TTS", "onInit called with status: $status")
+
         if (status == TextToSpeech.SUCCESS) {
-            engineName = tts?.defaultEngine ?: tts?.engines?.firstOrNull()?.name ?: "Unknown"
+            engineName = tts?.defaultEngine ?: "Unknown"
             Log.d("TTS", "Engine name: $engineName")
 
             val chineseLocales = listOf(
@@ -85,7 +104,6 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
     private fun testSpeak() {
         val testResult = tts?.speak("语音引擎已就绪", TextToSpeech.QUEUE_FLUSH, null)
         Log.d("TTS", "Test speak result: $testResult")
-        lastSpeakResult = testResult ?: -1
     }
 
     fun setOnTtsReadyListener(listener: () -> Unit) {
@@ -112,20 +130,18 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
         return isInitialized
     }
 
-    fun getLastSpeakResult(): Int {
-        return lastSpeakResult
+    fun getInitStatus(): Int {
+        return initStatus
     }
 
     fun speak(text: String) {
         if (!isInitialized || tts == null) {
             Log.e("TTS", "TTS not initialized")
-            lastSpeakResult = -1
             return
         }
 
         if (text.isEmpty()) {
             Log.e("TTS", "Empty text")
-            lastSpeakResult = -1
             return
         }
 
@@ -133,14 +149,6 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
 
         val result = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null)
         Log.d("TTS", "Speak result: $result, text length: ${text.length}")
-        lastSpeakResult = result ?: -1
-
-        if (result != TextToSpeech.SUCCESS) {
-            Log.e("TTS", "Speak returned error: $result")
-            val fallbackResult = tts?.speak(text, TextToSpeech.QUEUE_ADD, null)
-            Log.d("TTS", "Fallback speak result: $fallbackResult")
-            lastSpeakResult = fallbackResult ?: -1
-        }
     }
 
     fun pause() {
