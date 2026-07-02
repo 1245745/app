@@ -3,6 +3,7 @@ package com.example.ocrreader
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -261,10 +262,28 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.no_chinese_content, Toast.LENGTH_SHORT).show()
             return
         }
-        if (!ttsManager.isChineseConfirmed()) {
-            Toast.makeText(this, "正在尝试朗读...", Toast.LENGTH_SHORT).show()
-        }
         ttsManager.speak(recognizedText)
+        showTtsInfo()
+    }
+
+    private fun showTtsInfo() {
+        val engine = ttsManager.getEngineName()
+        val initialized = ttsManager.isInitialized()
+        val speaking = ttsManager.isSpeaking()
+        val result = ttsManager.getLastSpeakResult()
+        
+        val info = "引擎: $engine\n初始化: $initialized\n正在播放: $speaking\n结果码: $result"
+        Toast.makeText(this, info, Toast.LENGTH_LONG).show()
+    }
+
+    private fun openTtsSettings() {
+        try {
+            val intent = Intent("com.android.settings.TTS_SETTINGS")
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "无法打开TTS设置", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun pauseText() {

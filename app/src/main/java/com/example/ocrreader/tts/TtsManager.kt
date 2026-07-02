@@ -2,7 +2,6 @@ package com.example.ocrreader.tts
 
 import android.content.Context
 import android.media.AudioAttributes
-import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
@@ -12,8 +11,9 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     private var tts: TextToSpeech? = null
     private var isInitialized = false
-    private var isChineseConfirmed = false
     private var speechRate = 1.0f
+    private var engineName: String = ""
+    private var lastSpeakResult: Int = -2
     private var onTtsReady: (() -> Unit)? = null
     private var onSpeechCompleted: (() -> Unit)? = null
     private var onCharacterProgress: ((Int) -> Unit)? = null
@@ -24,30 +24,32 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
+            engineName = tts?.defaultEngine ?: tts?.engines?.firstOrNull()?.name ?: "Unknown"
+            Log.d("TTS", "Engine name: $engineName")
+
             val chineseLocales = listOf(
                 Locale.SIMPLIFIED_CHINESE,
                 Locale.CHINA,
                 Locale.CHINESE,
-                Locale("zh", "CN"),
-                Locale("zh", "HK"),
-                Locale("zh", "TW")
+                Locale("zh", "CN")
             )
 
+            var localeSet = false
             for (locale in chineseLocales) {
                 val result = tts?.setLanguage(locale)
                 Log.d("TTS", "Trying locale: $locale, result: $result")
 
                 if (result != TextToSpeech.LANG_MISSING_DATA && 
                     result != TextToSpeech.LANG_NOT_SUPPORTED) {
-                    isChineseConfirmed = true
-                    Log.d("TTS", "Chinese TTS confirmed with locale: $locale")
+                    localeSet = true
+                    Log.d("TTS", "Locale set successfully: $locale")
                     break
                 }
             }
 
-            if (!isChineseConfirmed) {
-                Log.w("TTS", "Chinese locale not explicitly supported, but will try anyway")
+            if (!localeSet) {
                 tts?.setLanguage(Locale.getDefault())
+                Log.w("TTS", "Using default locale")
             }
 
             val audioAttributes = AudioAttributes.Builder()
@@ -71,10 +73,19 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
                     onCharacterProgress?.invoke(end)
                 }
             })
+
             onTtsReady?.invoke()
+
+            testSpeak()
         } else {
             Log.e("TTS", "Initialization failed with status: $status")
         }
+    }
+
+    private fun testSpeak() {
+        val testResult = tts?.speak("语音引擎已就绪", TextToSpeech.QUEUE_FLUSH, null)
+        Log.d("TTS", "Test speak result: $testResult")
+        lastSpeakResult = testResult ?: -1
     }
 
     fun setOnTtsReadyListener(listener: () -> Unit) {
@@ -93,40 +104,42 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
         onCharacterProgress = listener
     }
 
-    fun isChineseConfirmed(): Boolean {
-        return isChineseConfirmed
+    fun getEngineName(): String {
+        return engineName
     }
 
-    fun speak(text: String): Boolean {
+    fun isInitialized(): Boolean {
+        return isInitialized
+    }
+
+    fun getLastSpeakResult(): Int {
+        return lastSpeakResult
+    }
+
+    fun speak(text: String) {
         if (!isInitialized || tts == null) {
             Log.e("TTS", "TTS not initialized")
-            return false
+            lastSpeakResult = -1
+            return
         }
 
         if (text.isEmpty()) {
             Log.e("TTS", "Empty text")
-            return false
+            lastSpeakResult = -1
+            return
         }
 
         tts?.stop()
 
-        val utteranceId = "utterance_${System.currentTimeMillis()}"
-
-        val bundle = Bundle()
-        bundle.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId)
-
-        val result = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, bundle, utteranceId)
+        val result = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null)
         Log.d("TTS", "Speak result: $result, text length: ${text.length}")
+        lastSpeakResult = result ?: -1
 
-        if (result == TextToSpeech.SUCCESS) {
-            return true
-        } else {
-            Log.e("TTS", "Speak failed, trying fallback API")
-            val params = HashMap<String, String>()
-            params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = utteranceId
-            val fallbackResult = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params)
+        if (result != TextToSpeech.SUCCESS) {
+            Log.e("TTS", "Speak returned error: $result")
+            val fallbackResult = tts?.speak(text, TextToSpeech.QUEUE_ADD, null)
             Log.d("TTS", "Fallback speak result: $fallbackResult")
-            return fallbackResult == TextToSpeech.SUCCESS
+            lastSpeakResult = fallbackResult ?: -1
         }
     }
 
