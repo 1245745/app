@@ -3,6 +3,7 @@ package com.example.ocrreader.ocr
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import org.apache.pdfbox.Loader
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.text.PDFTextStripper
@@ -10,20 +11,35 @@ import java.io.File
 
 class PdfProcessor(private val ocrEngine: OcrEngine) {
 
-    fun processPdf(pdfFile: File): String {
+    fun processPdf(pdfFile: File): OcrResult {
         return try {
+            Log.d("PDF", "Processing PDF: ${pdfFile.absolutePath}")
             val document = Loader.loadPDF(pdfFile)
-            val hasText = extractTextFromPdf(document).isNotEmpty()
+            val rawText = extractTextFromPdf(document)
             document.close()
+            Log.d("PDF", "Raw text from PDF: ${rawText.length} characters")
 
-            if (hasText) {
-                extractTextFromPdfFile(pdfFile)
+            if (rawText.isNotEmpty()) {
+                val filteredText = ocrEngine.filterChineseOnly(rawText)
+                if (filteredText.isEmpty()) {
+                    Log.d("PDF", "No Chinese characters found in text PDF")
+                    OcrResult("", "PDF文本中未包含中文字符")
+                } else {
+                    Log.d("PDF", "Filtered Chinese text: ${filteredText.length} characters")
+                    OcrResult(filteredText, null)
+                }
             } else {
+                Log.d("PDF", "PDF appears to be scanned, performing OCR")
                 extractTextFromScannedPdf(pdfFile)
             }
         } catch (e: Exception) {
-            e.printStackTrace()
-            extractTextFromScannedPdf(pdfFile)
+            Log.e("PDF", "Error processing PDF: ${e.message}", e)
+            try {
+                extractTextFromScannedPdf(pdfFile)
+            } catch (ocrEx: Exception) {
+                Log.e("PDF", "OCR fallback also failed: ${ocrEx.message}", ocrEx)
+                OcrResult("", "处理PDF失败: ${e.message}")
+            }
         }
     }
 
@@ -32,28 +48,18 @@ class PdfProcessor(private val ocrEngine: OcrEngine) {
             val stripper = PDFTextStripper()
             stripper.getText(document)
         } catch (e: Exception) {
+            Log.e("PDF", "Error extracting text from PDF: ${e.message}", e)
             ""
         }
     }
 
-    private fun extractTextFromPdfFile(pdfFile: File): String {
-        return try {
-            val document = Loader.loadPDF(pdfFile)
-            val stripper = PDFTextStripper()
-            val text = stripper.getText(document)
-            document.close()
-            ocrEngine.filterChineseOnly(text)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            ""
-        }
-    }
-
-    private fun extractTextFromScannedPdf(pdfFile: File): String {
+    private fun extractTextFromScannedPdf(pdfFile: File): OcrResult {
         return try {
             val pfd = ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY)
             val renderer = PdfRenderer(pfd)
             val pageCount = renderer.pageCount
+            Log.d("PDF", "Scanned PDF has $pageCount pages")
+
             val textBuilder = StringBuilder()
 
             for (i in 0 until pageCount) {
@@ -64,18 +70,32 @@ class PdfProcessor(private val ocrEngine: OcrEngine) {
                     Bitmap.Config.ARGB_8888
                 )
                 page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                val pageText = ocrEngine.recognizeBitmap(bitmap)
-                textBuilder.append(pageText)
+
+                val pageResult = ocrEngine.recognizeBitmap(bitmap)
+                if (pageResult.error != null) {
+                    renderer.close()
+                    pfd.close()
+                    return pageResult
+                }
+                textBuilder.append(pageResult.text)
+
                 page.close()
                 bitmap.recycle()
+                Log.d("PDF", "Page $i OCR result: ${pageResult.text.length} characters")
             }
 
             renderer.close()
             pfd.close()
-            textBuilder.toString()
+
+            val result = textBuilder.toString()
+            if (result.isEmpty()) {
+                OcrResult("", "扫描PDF中未识别到中文内容")
+            } else {
+                OcrResult(result, null)
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
-            ""
+            Log.e("PDF", "Error extracting text from scanned PDF: ${e.message}", e)
+            OcrResult("", "处理扫描PDF失败: ${e.message}")
         }
     }
 }
