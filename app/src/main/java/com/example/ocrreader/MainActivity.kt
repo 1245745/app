@@ -6,11 +6,13 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.Button
 import android.widget.ImageButton
+import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AlertDialog
+import com.example.ocrreader.ocr.LanguageDataDownloadListener
 import com.example.ocrreader.ocr.OcrEngine
 import com.example.ocrreader.ocr.OcrResult
 import com.example.ocrreader.ocr.PdfProcessor
@@ -38,6 +40,7 @@ class MainActivity : AppCompatActivity() {
 
     private var recognizedText: String = ""
     private var progressDialog: AlertDialog? = null
+    private var downloadDialog: AlertDialog? = null
 
     private val REQUEST_CODE_PERMISSIONS = 1001
     private val REQUEST_CODE_FILE_SELECT = 1002
@@ -50,6 +53,7 @@ class MainActivity : AppCompatActivity() {
         initOcrEngine()
         initTtsManager()
         checkPermissions()
+        checkLanguageData()
     }
 
     private fun initViews() {
@@ -94,6 +98,61 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun checkLanguageData() {
+        if (!ocrEngine.checkLanguageData()) {
+            showDownloadDialog()
+        }
+    }
+
+    private fun showDownloadDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_download, null)
+        val progressBar = dialogView.findViewById<ProgressBar>(R.id.progressBar)
+        val tvProgress = dialogView.findViewById<TextView>(R.id.tvProgress)
+
+        downloadDialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+        downloadDialog?.show()
+
+        ocrEngine.downloadLanguageData(object : LanguageDataDownloadListener {
+            override fun onProgress(progress: Int) {
+                runOnUiThread {
+                    progressBar.progress = progress
+                    tvProgress.text = "正在下载语言包... $progress%"
+                }
+            }
+
+            override fun onSuccess() {
+                runOnUiThread {
+                    downloadDialog?.dismiss()
+                    Toast.makeText(this@MainActivity, "语言包下载完成", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            override fun onError(message: String) {
+                runOnUiThread {
+                    downloadDialog?.dismiss()
+                    showRetryDialog(message)
+                }
+            }
+        })
+    }
+
+    private fun showRetryDialog(errorMessage: String) {
+        AlertDialog.Builder(this)
+            .setTitle("下载失败")
+            .setMessage("$errorMessage\n\n是否重试？")
+            .setPositiveButton("重试") { _, _ ->
+                showDownloadDialog()
+            }
+            .setNegativeButton("取消") { dialog, _ ->
+                dialog.dismiss()
+                tvResult.text = "语言包下载失败，请检查网络后重启应用"
+            }
+            .show()
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -111,6 +170,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun selectFile() {
+        if (!ocrEngine.checkLanguageData()) {
+            Toast.makeText(this, "语言包未准备好，请先下载", Toast.LENGTH_SHORT).show()
+            showDownloadDialog()
+            return
+        }
+
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"

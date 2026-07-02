@@ -8,63 +8,91 @@ import com.googlecode.tesseract.android.TessBaseAPI
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.net.HttpURLConnection
+import java.net.URL
 
 data class OcrResult(
     val text: String,
     val error: String? = null
 )
 
+interface LanguageDataDownloadListener {
+    fun onProgress(progress: Int)
+    fun onSuccess()
+    fun onError(message: String)
+}
+
 class OcrEngine(private val context: Context) {
 
     private val DATA_PATH = "${context.filesDir}/tesseract/"
     private val LANG_PATH = DATA_PATH + "tessdata/"
     private val LANG_FILE = "chi_sim.traineddata"
+    private val LANG_FILE_URL = "https://github.com/tesseract-ocr/tessdata_fast/raw/main/chi_sim.traineddata"
+    private val MIN_FILE_SIZE = 5 * 1024 * 1024
 
     private var isInitialized = false
     private var initError: String? = null
 
-    init {
-        prepareLanguageData()
+    fun checkLanguageData(): Boolean {
+        val langFile = File(LANG_PATH, LANG_FILE)
+        return langFile.exists() && langFile.length() >= MIN_FILE_SIZE
     }
 
-    private fun prepareLanguageData() {
-        val langFile = File(LANG_PATH, LANG_FILE)
-        if (!langFile.exists()) {
+    fun downloadLanguageData(listener: LanguageDataDownloadListener) {
+        Thread {
             try {
+                val langFile = File(LANG_PATH, LANG_FILE)
                 langFile.parentFile?.mkdirs()
-                val inputStream: InputStream = context.assets.open("tessdata/$LANG_FILE")
+
+                val url = URL(LANG_FILE_URL)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.instanceFollowRedirects = true
+                connection.connectTimeout = 30000
+                connection.readTimeout = 30000
+
+                val totalSize = connection.contentLength.toLong()
+                Log.d("OCR", "Downloading language data, size: $totalSize bytes")
+
+                val inputStream = connection.inputStream
                 val outputStream = FileOutputStream(langFile)
+
                 val buffer = ByteArray(8192)
-                var length: Int
-                var totalBytes = 0
-                while (inputStream.read(buffer).also { length = it } > 0) {
-                    outputStream.write(buffer, 0, length)
-                    totalBytes += length
+                var bytesRead: Int
+                var downloadedSize: Long = 0
+
+                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                    outputStream.write(buffer, 0, bytesRead)
+                    downloadedSize += bytesRead
+                    val progress = if (totalSize > 0) {
+                        ((downloadedSize * 100) / totalSize).toInt()
+                    } else {
+                        ((downloadedSize / 1024).toInt() % 100)
+                    }
+                    listener.onProgress(progress)
                 }
+
                 inputStream.close()
                 outputStream.close()
-                Log.d("OCR", "Language data copied successfully, size: $totalBytes bytes")
-                if (totalBytes < 1000000) {
-                    initError = "语言包文件太小，可能是无效文件"
-                    Log.e("OCR", "Language data file too small: $totalBytes bytes")
+                connection.disconnect()
+
+                Log.d("OCR", "Download completed, actual size: ${langFile.length()} bytes")
+
+                if (langFile.length() >= MIN_FILE_SIZE) {
+                    listener.onSuccess()
+                } else {
+                    langFile.delete()
+                    listener.onError("语言包下载不完整，请重试")
                 }
             } catch (e: Exception) {
-                initError = "复制语言包失败: ${e.message}"
-                Log.e("OCR", "Failed to copy language data: ${e.message}", e)
+                Log.e("OCR", "Download failed: ${e.message}", e)
+                listener.onError("下载失败: ${e.message}")
             }
-        } else {
-            val fileSize = langFile.length()
-            Log.d("OCR", "Language data already exists, size: $fileSize bytes")
-            if (fileSize < 1000000) {
-                initError = "语言包文件太小，可能是无效文件"
-                Log.e("OCR", "Language data file too small: $fileSize bytes")
-            }
-        }
+        }.start()
     }
 
     fun recognizeImage(imageFile: File): OcrResult {
-        if (initError != null) {
-            return OcrResult("", initError)
+        if (!checkLanguageData()) {
+            return OcrResult("", "语言包未准备好，请先下载")
         }
 
         return try {
@@ -83,8 +111,8 @@ class OcrEngine(private val context: Context) {
     }
 
     fun recognizeBitmap(bitmap: Bitmap): OcrResult {
-        if (initError != null) {
-            return OcrResult("", initError)
+        if (!checkLanguageData()) {
+            return OcrResult("", "语言包未准备好，请先下载")
         }
 
         val tess = TessBaseAPI()
