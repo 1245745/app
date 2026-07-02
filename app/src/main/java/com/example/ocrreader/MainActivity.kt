@@ -272,8 +272,11 @@ class MainActivity : AppCompatActivity() {
     private fun showTtsErrorDialog() {
         val engine = ttsManager.getEngineName()
         val status = ttsManager.getInitStatus()
+        val engines = ttsManager.getEngineList()
         
-        val info = "引擎: $engine\n初始化: false\n状态码: $status\n\n请检查手机是否安装了中文语音引擎。"
+        val engineListStr = if (engines.isEmpty()) "无" else engines.joinToString("\n")
+        
+        val info = "引擎: $engine\n初始化: false\n状态码: $status\n\n可用引擎列表:\n$engineListStr\n\n请检查手机是否安装了中文语音引擎。"
         
         AlertDialog.Builder(this)
             .setTitle("语音合成不可用")
