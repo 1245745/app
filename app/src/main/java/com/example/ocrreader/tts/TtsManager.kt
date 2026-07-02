@@ -12,7 +12,7 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     private var tts: TextToSpeech? = null
     private var isInitialized = false
-    private var isChineseSupported = false
+    private var isChineseConfirmed = false
     private var speechRate = 1.0f
     private var onTtsReady: (() -> Unit)? = null
     private var onSpeechCompleted: (() -> Unit)? = null
@@ -24,19 +24,30 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            val result = tts?.setLanguage(Locale.CHINA)
-            Log.d("TTS", "Set language result: $result")
+            val chineseLocales = listOf(
+                Locale.SIMPLIFIED_CHINESE,
+                Locale.CHINA,
+                Locale.CHINESE,
+                Locale("zh", "CN"),
+                Locale("zh", "HK"),
+                Locale("zh", "TW")
+            )
 
-            if (result == TextToSpeech.LANG_MISSING_DATA) {
-                Log.e("TTS", "Chinese TTS data missing")
-                isChineseSupported = false
-            } else if (result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                Log.e("TTS", "Chinese TTS not supported")
-                isChineseSupported = false
+            for (locale in chineseLocales) {
+                val result = tts?.setLanguage(locale)
+                Log.d("TTS", "Trying locale: $locale, result: $result")
+
+                if (result != TextToSpeech.LANG_MISSING_DATA && 
+                    result != TextToSpeech.LANG_NOT_SUPPORTED) {
+                    isChineseConfirmed = true
+                    Log.d("TTS", "Chinese TTS confirmed with locale: $locale")
+                    break
+                }
+            }
+
+            if (!isChineseConfirmed) {
+                Log.w("TTS", "Chinese locale not explicitly supported, but will try anyway")
                 tts?.setLanguage(Locale.getDefault())
-            } else {
-                isChineseSupported = true
-                Log.d("TTS", "Chinese TTS supported")
             }
 
             val audioAttributes = AudioAttributes.Builder()
@@ -82,8 +93,8 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
         onCharacterProgress = listener
     }
 
-    fun isChineseSupported(): Boolean {
-        return isChineseSupported
+    fun isChineseConfirmed(): Boolean {
+        return isChineseConfirmed
     }
 
     fun speak(text: String): Boolean {

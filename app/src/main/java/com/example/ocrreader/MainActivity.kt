@@ -257,18 +257,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun playText() {
-        if (!ttsManager.isChineseSupported()) {
-            Toast.makeText(this, "手机不支持中文语音合成，请安装中文TTS引擎", Toast.LENGTH_LONG).show()
-            return
-        }
         if (recognizedText.isEmpty()) {
             Toast.makeText(this, R.string.no_chinese_content, Toast.LENGTH_SHORT).show()
             return
         }
-        val success = ttsManager.speak(recognizedText)
-        if (!success) {
-            Toast.makeText(this, "语音合成失败，请稍后重试", Toast.LENGTH_SHORT).show()
+        if (!ttsManager.isChineseConfirmed()) {
+            Toast.makeText(this, "正在尝试朗读...", Toast.LENGTH_SHORT).show()
         }
+        ttsManager.speak(recognizedText)
     }
 
     private fun pauseText() {
