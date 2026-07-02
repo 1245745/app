@@ -7,30 +7,18 @@ import android.util.Log
 import com.googlecode.tesseract.android.TessBaseAPI
 import java.io.File
 import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
+import java.io.InputStream
 
 data class OcrResult(
     val text: String,
     val error: String? = null
 )
 
-interface LanguageDataDownloadListener {
-    fun onProgress(progress: Int)
-    fun onSuccess()
-    fun onError(message: String)
-}
-
 class OcrEngine(private val context: Context) {
 
     private val DATA_PATH = "${context.filesDir}/tesseract/"
     private val LANG_PATH = DATA_PATH + "tessdata/"
     private val LANG_FILE = "chi_sim.traineddata"
-    private val LANG_FILE_URLS = arrayOf(
-        "https://cdn.jsdelivr.net/gh/tesseract-ocr/tessdata_fast@main/chi_sim.traineddata",
-        "https://gcore.jsdelivr.net/gh/tesseract-ocr/tessdata_fast@main/chi_sim.traineddata",
-        "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/chi_sim.traineddata"
-    )
     private val MIN_FILE_SIZE = 5 * 1024 * 1024
 
     fun checkLanguageData(): Boolean {
@@ -38,81 +26,48 @@ class OcrEngine(private val context: Context) {
         return langFile.exists() && langFile.length() >= MIN_FILE_SIZE
     }
 
-    fun downloadLanguageData(listener: LanguageDataDownloadListener) {
-        Thread {
-            for ((index, urlString) in LANG_FILE_URLS.withIndex()) {
-                try {
-                    val langFile = File(LANG_PATH, LANG_FILE)
-                    langFile.parentFile?.mkdirs()
+    fun prepareLanguageData(): Boolean {
+        val langFile = File(LANG_PATH, LANG_FILE)
 
-                    Log.d("OCR", "Trying download from mirror ${index + 1}: $urlString")
+        if (langFile.exists() && langFile.length() >= MIN_FILE_SIZE) {
+            Log.d("OCR", "Language data already exists")
+            return true
+        }
 
-                    val url = URL(urlString)
-                    val connection = openConnection(url)
-                    val responseCode = connection.responseCode
+        try {
+            langFile.parentFile?.mkdirs()
 
-                    if (responseCode != HttpURLConnection.HTTP_OK) {
-                        Log.e("OCR", "HTTP response code: $responseCode")
-                        connection.disconnect()
-                        continue
-                    }
+            val inputStream: InputStream = context.assets.open("tessdata/$LANG_FILE")
+            val outputStream = FileOutputStream(langFile)
 
-                    val totalSize = connection.contentLength.toLong()
-                    Log.d("OCR", "Downloading language data, size: $totalSize bytes")
+            val buffer = ByteArray(8192)
+            var bytesRead: Int
 
-                    val inputStream = connection.inputStream
-                    val outputStream = FileOutputStream(langFile)
-
-                    val buffer = ByteArray(8192)
-                    var bytesRead: Int
-                    var downloadedSize: Long = 0
-
-                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                        outputStream.write(buffer, 0, bytesRead)
-                        downloadedSize += bytesRead
-                        val progress = if (totalSize > 0) {
-                            ((downloadedSize * 100) / totalSize).toInt()
-                        } else {
-                            ((downloadedSize / 1024).toInt() % 100)
-                        }
-                        listener.onProgress(progress)
-                    }
-
-                    inputStream.close()
-                    outputStream.close()
-                    connection.disconnect()
-
-                    Log.d("OCR", "Download completed, actual size: ${langFile.length()} bytes")
-
-                    if (langFile.length() >= MIN_FILE_SIZE) {
-                        listener.onSuccess()
-                        return@Thread
-                    } else {
-                        langFile.delete()
-                        Log.e("OCR", "Downloaded file too small: ${langFile.length()} bytes")
-                    }
-                } catch (e: Exception) {
-                    Log.e("OCR", "Download failed from mirror ${index + 1}: ${e.message}", e)
-                }
+            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                outputStream.write(buffer, 0, bytesRead)
             }
 
-            listener.onError("所有下载源都失败了，请检查网络")
-        }.start()
-    }
+            inputStream.close()
+            outputStream.close()
 
-    private fun openConnection(url: URL): HttpURLConnection {
-        val connection = url.openConnection() as HttpURLConnection
-        connection.instanceFollowRedirects = true
-        connection.connectTimeout = 30000
-        connection.readTimeout = 60000
-        connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-        connection.setRequestProperty("Accept", "*/*")
-        return connection
+            Log.d("OCR", "Language data copied from assets, size: ${langFile.length()} bytes")
+
+            if (langFile.length() >= MIN_FILE_SIZE) {
+                return true
+            } else {
+                Log.e("OCR", "Language data too small: ${langFile.length()} bytes")
+                langFile.delete()
+                return false
+            }
+        } catch (e: Exception) {
+            Log.e("OCR", "Failed to copy language data: ${e.message}", e)
+            return false
+        }
     }
 
     fun recognizeImage(imageFile: File): OcrResult {
         if (!checkLanguageData()) {
-            return OcrResult("", "语言包未准备好，请先下载")
+            return OcrResult("", "语言包未准备好")
         }
 
         return try {
@@ -132,7 +87,7 @@ class OcrEngine(private val context: Context) {
 
     fun recognizeBitmap(bitmap: Bitmap): OcrResult {
         if (!checkLanguageData()) {
-            return OcrResult("", "语言包未准备好，请先下载")
+            return OcrResult("", "语言包未准备好")
         }
 
         val tess = TessBaseAPI()
@@ -141,7 +96,7 @@ class OcrEngine(private val context: Context) {
             val initSuccess = tess.init(DATA_PATH, "chi_sim")
             if (!initSuccess) {
                 Log.e("OCR", "Tesseract initialization failed")
-                return OcrResult("", "OCR引擎初始化失败，请检查语言包")
+                return OcrResult("", "OCR引擎初始化失败")
             }
             Log.d("OCR", "Tesseract initialized successfully")
 
