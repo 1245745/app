@@ -1,4 +1,4 @@
-﻿package com.example.ocrreader.tts
+package com.example.ocrreader.tts
 
 import android.content.Context
 import android.content.Intent
@@ -52,13 +52,13 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
         try {
             val intent = Intent(TextToSpeech.Engine.ACTION_CHECK_TTS_DATA)
             val services = context.packageManager.queryIntentServices(intent, 0)
-            Log.d("TTS", "Found " + services.size + " available TTS engines:")
+            Log.d("TTS", "Found ${services.size} available TTS engines:")
             services.forEach { info ->
-                Log.d("TTS", "  - " + info.serviceInfo.packageName + " (label: " + info.loadLabel(context.packageManager) + ")")
+                Log.d("TTS", "  - ${info.serviceInfo.packageName} (label: ${info.loadLabel(context.packageManager)})")
             }
             availableEngines = services.map { it.serviceInfo.packageName }
         } catch (e: Exception) {
-            Log.e("TTS", "Failed to discover engines: " + e.message)
+            Log.e("TTS", "Failed to discover engines: ${e.message}")
             availableEngines = emptyList()
         }
     }
@@ -71,7 +71,7 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
                 combined.add(engine)
             }
         }
-        Log.d("TTS", "Total engines to try: " + combined.size)
+        Log.d("TTS", "Total engines to try: ${combined.size}")
         return combined
     }
 
@@ -90,7 +90,7 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
         }
 
         val engineName = engines[currentEngineIndex]
-        Log.d("TTS", "Trying engine " + currentEngineIndex + ": " + (if (engineName.isEmpty()) "default" else engineName))
+        Log.d("TTS", "Trying engine $currentEngineIndex: ${if (engineName.isEmpty()) "default" else engineName}")
 
         if (tts != null) {
             tts?.shutdown()
@@ -118,11 +118,11 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     override fun onInit(status: Int) {
         initStatus = status
-        Log.d("TTS", "onInit called with status: " + status)
+        Log.d("TTS", "onInit called with status: $status")
 
         if (status == TextToSpeech.SUCCESS) {
             this.engineName = tts?.defaultEngine ?: "Unknown"
-            Log.d("TTS", "Engine name: " + this.engineName)
+            Log.d("TTS", "Engine name: $this.engineName")
 
             val chineseLocales = listOf(
                 Locale.SIMPLIFIED_CHINESE,
@@ -137,12 +137,12 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
             var localeSet = false
             for (locale in chineseLocales) {
                 val result = tts?.setLanguage(locale)
-                Log.d("TTS", "Trying locale: " + locale + ", result: " + result)
+                Log.d("TTS", "Trying locale: $locale, result: $result")
 
                 if (result != TextToSpeech.LANG_MISSING_DATA &&
                     result != TextToSpeech.LANG_NOT_SUPPORTED) {
                     localeSet = true
-                    Log.d("TTS", "Locale set successfully: " + locale)
+                    Log.d("TTS", "Locale set successfully: $locale")
                     break
                 }
             }
@@ -178,7 +178,7 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
 
             testSpeak()
         } else {
-            Log.e("TTS", "Initialization failed with status: " + status + ", trying next engine")
+            Log.e("TTS", "Initialization failed with status: $status, trying next engine")
 
             currentEngineIndex++
             tryNextEngine()
@@ -187,7 +187,7 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
 
     private fun testSpeak() {
         val testResult = tts?.speak("语音引擎已就绪", TextToSpeech.QUEUE_FLUSH, null)
-        Log.d("TTS", "Test speak result: " + testResult)
+        Log.d("TTS", "Test speak result: $testResult")
     }
 
     fun setOnTtsReadyListener(listener: () -> Unit) {
@@ -232,10 +232,10 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
         tts?.stop()
 
         val params = HashMap<String, String>()
-        params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "utterance_" + System.currentTimeMillis()
+        params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "utterance_${System.currentTimeMillis()}"
 
         val result = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params)
-        Log.d("TTS", "Speak result: " + result + ", text length: " + text.length)
+        Log.d("TTS", "Speak result: $result, text length: ${text.length}")
     }
 
     fun pause() {
